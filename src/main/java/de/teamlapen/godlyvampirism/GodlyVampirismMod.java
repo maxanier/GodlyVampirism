@@ -6,13 +6,14 @@ import de.teamlapen.vampirism.config.BalanceConfig;
 import de.teamlapen.vampirism.config.VampirismConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.dedicated.DedicatedServer;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,7 +21,6 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.function.Supplier;
 
-@Mod.EventBusSubscriber
 @Mod(GodlyVampirismMod.MODID)
 public class GodlyVampirismMod {
 
@@ -31,10 +31,10 @@ public class GodlyVampirismMod {
     private static final Set<Spec> defaultValues = new LinkedHashSet<>();
     private static List<Supplier<Optional<Spec>>> specSuppliers = new ArrayList<>();
 
-    public GodlyVampirismMod() {
+    public GodlyVampirismMod(IEventBus modEventBus) {
         instance = this;
-        MinecraftForge.EVENT_BUS.addListener(this::onCommandsRegister);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onSetup);
+        NeoForge.EVENT_BUS.addListener(this::onCommandsRegister);
+        modEventBus.addListener(this::onSetup);
 
         //Specify changes
         addInteger("arrowVampireKillerMaxHealth", 80);
@@ -62,6 +62,7 @@ public class GodlyVampirismMod {
         addInteger("vpDbnoDuration",30);
         addInteger("vpNaturalArmorRegenDuration",2);
         addInteger("miEquipmentRepairAmount", 20);
+        addInteger("vaFreezeDuration", 10);
 
     }
 
@@ -69,7 +70,7 @@ public class GodlyVampirismMod {
         specSuppliers.add(() -> {
             try {
                 Field f = BalanceConfig.class.getDeclaredField(name);
-                ForgeConfigSpec.ConfigValue<Q> conf = (ForgeConfigSpec.ConfigValue<Q>) f.get(VampirismConfig.BALANCE);
+                ModConfigSpec.ConfigValue<Q> conf = (ModConfigSpec.ConfigValue<Q>) f.get(VampirismConfig.BALANCE);
                 return Optional.of(new Spec<Q>(conf, value));
             } catch (NoSuchFieldException e) {
                 LOGGER.error("Cannot find config field as expected", e);
@@ -128,6 +129,7 @@ public class GodlyVampirismMod {
             v.resetValue(false);
         }
         if (v != null) v.resetValue(true);
+        source.sendSuccess( () -> Component.literal("Success!"), true);
         return 0;
     }
 
@@ -138,9 +140,9 @@ public class GodlyVampirismMod {
 
     private static class Spec<T> {
         private final T defaultValue;
-        private final ForgeConfigSpec.ConfigValue<T> configSpec;
+        private final ModConfigSpec.ConfigValue<T> configSpec;
 
-        private Spec(ForgeConfigSpec.ConfigValue<T> config, T value) {
+        private Spec(ModConfigSpec.ConfigValue<T> config, T value) {
             this.configSpec = config;
             this.defaultValue = value;
         }

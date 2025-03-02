@@ -2,28 +2,32 @@ plugins {
     id 'eclipse'
     id 'idea'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
-    id 'com.matthewprenger.cursegradle' version '1.4.0'
+    id 'net.neoforged.gradle.userdev' version '7.0.142'
+    id "me.modmuss50.mod-publish-plugin" version '0.8.4'
 }
 
 
 
-configurations {
-    optionalRuntime
-    runtime.extendsFrom optionalRuntime // optionalRuntime dependencies are downloaded but not exported to POM
-}
 
 version = project.minecraft_version + "-" + project.mod_version
 group = "de.teamlapen.godlyvampirism" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
-archivesBaseName = "GodlyVampirism"
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+base {
+    archivesName = "godly_vampirism"
+}
+
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
     //Maven repo for Vampirism
     maven {
-        name = "MaxanierMaven"
-        url = "https://maven.maxanier.de"
+        name = "Maxanier"
+        url = "https://maven.maxanier.de/releases"
+        content {
+            includeGroupAndSubgroups "de.teamlapen"
+            includeGroupAndSubgroups "de.maxanier"
+        }
     }
     maven {
         // location of the maven that hosts JEI files
@@ -31,124 +35,129 @@ repositories {
         url = "https://dvs1.progwml6.com/files/maven"
     }
     maven {
-        // location of a maven mirror for JEI files, as a fallback
+        // location of a maven mirror for JEI files
         name = "ModMaven"
-        url = "modmaven.k-4u.nl"
+        url = "https://modmaven.dev/"
+        content {
+            includeGroup "mezz.jei"
+        }
+    }
+    maven {
+        url "https://www.cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
     }
     maven{
         //My custom location for (temp) local builds
         url = 'file://' + project.file('../../../.m2/repository').getAbsolutePath()
     }
+    maven {
+        name = "Forge"
+        url = "https://maven.minecraftforge.net"
+        content {
+            includeGroup "com.github.glitchfiend"
+        }
+    }
 
 }
 dependencies {
-    minecraft([
-            group: "net.minecraftforge",
-            name: "forge",
-            version: "${project.minecraft_version}-${project.forge_version}"
-    ])
+    implementation "net.neoforged:neoforge:${project.neo_version}"
     
     //compile against Vampirism. Version is taken from gradle.properties. We have to separate dependencies here, to trick gradle into not exporting the "_deobf" file name to pom
-    compileOnly fg.deobf("de.teamlapen.vampirism:Vampirism:${vampirism_mcversion}-${vampirism_version}"){
-        transitive = false
-    }
+    compileOnly "de.teamlapen.vampirism:Vampirism:${vampirism_mcversion}-${vampirism_version}"
     //
-    runtimeOnly fg.deobf("de.teamlapen.vampirism:Vampirism:${vampirism_mcversion}-${vampirism_version}"){
-        transitive = false
-    }
+    runtimeOnly "de.teamlapen.vampirism:Vampirism:${vampirism_mcversion}-${vampirism_version}"
 
 }
 
 
-minecraft {
-    mappings channel: "${project.mcp_channel}".toString(), version: "${project.mcp_mappings}".toString()
+runs {
+    // applies to all the run configs below
+    configureEach {
+        // Recommended logging data for a userdev environment
+        // The markers can be added/remove as needed separated by commas.
+        // "SCAN": For mods scan.
+        // "REGISTRIES": For firing of registry events.
+        // "REGISTRYDUMP": For getting the contents of all registries.
+        systemProperty 'forge.logging.markers', 'REGISTRIES'
 
-    runs {
-        client {
-            taskName 'runClient1'
-            property 'forge.logging.console.level', 'debug'
-            property 'forge.logging.markers', ''
-            //property 'mixin.env.disableRefMap', 'true'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            workingDirectory project.file('run/client1').canonicalPath
-            
-            mods {
-                "godly_vampirism" {
-                    source sourceSets.main
-                }
-            }
+        // Recommended logging level for the console
+        // You can set various levels here.
+        // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
+        systemProperty 'forge.logging.console.level', 'debug'
 
-        }
-        server = {
-            property 'forge.logging.markers', ''
-            property 'forge.logging.console.level', 'debug'
-            //property 'mixin.env.disableRefMap', 'true'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-
-            workingDirectory project.file('run/server').canonicalPath
-
-            mods {
-                'godly_vampirism' {
-                    source sourceSets.main
-                }
-
-
-            }
-        }
+        modSource project.sourceSets.main
     }
 
+    client {
+    }
+
+    server {
+        programArgument '--nogui'
+    }
+
+    // This run config launches GameTestServer and runs all registered gametests, then exits.
+    // By default, the server will crash when no gametests are provided.
+    // The gametest system is also enabled by default for other run configs under the /test command.
+    data {
+        // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
+        // workingDirectory project.file('run-data')
+
+        // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
+        programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+    }
+}
+subsystems {
+    parchment {
+        minecraftVersion = project.parchment_minecraft_version
+        mappingsVersion = project.parchment_mappings_version
+    }
 }
 
-//Replace strings in IDEA folders as well
-def resourceTargets = ['META-INF/mods.toml', 'pack.mcmeta']
-def intoTargets = ["$rootDir/out/production/resources/", "$rootDir/out/production/${project.name}.main/", "$rootDir/bin/main/"]
-def replaceProperties = ['version': project.mod_version, 'mcversion': minecraft_version, 'forge_version': forge_version, 'vampirism_version': vampirism_version]
-processResources {
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            minecraft_version   : minecraft_version, minecraft_version_range: minecraft_version_range,
+            neo_version         : neo_version, neo_version_range: neo_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id, mod_version: mod_version, mod_description: mod_description,'vampirism_version': vampirism_version,
+    ]
     inputs.properties replaceProperties
-    replaceProperties.put 'project', project
 
-    filesMatching(resourceTargets) {
-        expand replaceProperties
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand replaceProperties + [project: project]
     }
-
-    intoTargets.each { target ->
-        if (file(target).exists()) {
-            copy {
-                from(sourceSets.main.resources) {
-                    include resourceTargets
-                    expand replaceProperties
-                }
-                into target
-            }
-        }
-    }
-    exclude '**/Thumbs.db'
-
 }
 
-curseforge {
-    if (project.hasProperty("CURSEFORGE_API")) {
-        apiKey = project.CURSEFORGE_API
-    } else {
-        apiKey = "DUMMY"
-    }
-    project {
-        id = "441422"
-        releaseType = 'release'
-
-        addGameVersion project.minecraft_version
-
-        mainArtifact(jar) {
-            displayName = "GodlyVampirism-${project.minecraft_version}-${project.mod_version}"
-        }
-
-        relations {
-            requiredDependency 'vampirism-become-a-vampire'
-        }
-
-    }
 
 
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
+
+tasks.register('publishAll') {
+    dependsOn('build')
+    dependsOn('publish')
+    dependsOn('publishMods')
+}
+
+
+publishMods {
+    type = STABLE
+    file = jar.archiveFile
+    modLoaders.add("neoforge")
+    version = "${project.minecraft_version}-${project.mod_version}"
+    displayName = "GodlyVampirism-${project.minecraft_version}-${project.mod_version}"
+    dryRun = !(project.hasProperty("CURSEFORGE_API"))
+    changelog = "For details see Github commits."
+
+    curseforge {
+        accessToken = findProperty("CURSEFORGE_API") ?: "DUMMY"
+        projectId = project.curseforge_id
+        minecraftVersions.add(project.minecraft_version)
+        projectSlug = project.curseforge_slug
+    }
+}
+
+

@@ -21,7 +21,7 @@ usercache.json
 whitelist.json
 
 # Other
-/run/
+/runs/
 Thumbs.db
 .directory
 ### Eclipse template
