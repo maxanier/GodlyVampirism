@@ -10,3 +10,12 @@ pluginManagement {
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
 }
+
+
+//I always have one directory/clone per MC version so my folder name is e.g. 1.16. Therefore the default module name is 1.16. This prepends it with a meaningful name
+prefixProjectName(rootProject, "GodlyVampirism-")
+
+def prefixProjectName(project, prefix) {
+    project.name = prefix + project.name
+    project.children.each { prefixProjectName(it, prefix) }
+}
